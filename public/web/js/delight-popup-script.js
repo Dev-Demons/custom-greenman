@@ -5,7 +5,8 @@ window.Delight = {
 	contactEmail: document.querySelector('#FSI_IFrame')?.dataset?.feefoEmail,
 	products: document.querySelector('#FSI_IFrame')?.dataset?.feefoProducts ? JSON.parse(document.querySelector('#FSI_IFrame')?.dataset?.feefoProducts): [],
 	apiUrl: 'https://api-dev.delightglobal.io',
-	appUrl:'https://delight-custom-greenman-dev.fly.dev'
+	appUrl:'https://raw.githubusercontent.com/Dev-Demons/custom-greenman/main/public'
+	// appUrl:'https://delight-custom-greenman-dev.fly.dev'
 }
 
 var rewards = []

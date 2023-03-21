@@ -2,7 +2,8 @@ Delight = {
   templateName: 'product',
   addedToCart: false,
   apiUrl: 'https://api-dev.delightglobal.io',
-  appUrl: 'https://delight-custom-greenman-dev.fly.dev'
+  appUrl: 'https://raw.githubusercontent.com/Dev-Demons/custom-greenman/main/public'
+  // appUrl: 'https://delight-custom-greenman-dev.fly.dev'
 }
 
 const delightHostPartnerId = "64116ad7a5b7f032f200605a"
