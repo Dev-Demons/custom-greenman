@@ -2,7 +2,7 @@ Delight = {
   templateName: 'product',
   addedToCart: false,
   apiUrl: 'https://api-dev.delightglobal.io',
-  appUrl: 'https://raw.githubusercontent.com/Dev-Demons/custom-greenman/main/public'
+  appUrl: 'https://cdn.jsdelivr.net/gh/Dev-Demons/custom-greenman@main/public'
   // appUrl: 'https://delight-custom-greenman-dev.fly.dev'
 }
 
