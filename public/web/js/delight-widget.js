@@ -653,7 +653,7 @@ function removeRewards() {
 
 // Automatically Remove rewards that the user once remove from the cart
 function removeDislikeRewards() {
-  if (Delight.templateName === 'cart') {
+  if (Delight.templateName === 'product') {
     const storedValue = window.localStorage.getItem('Dislikes')
     let dislikeArray = []
     if(storedValue != null) {
@@ -661,7 +661,7 @@ function removeDislikeRewards() {
     }
     const cartElement1 = document.querySelector('.cart-content')
     rewardProducts.forEach((reward) => {
-      if(dislikeArray.contains(reward.pageurl)) {
+      if(dislikeArray.includes(reward.pageurl)) {
         const tdVariantElement = cartElement1?.querySelector(
           `a[href*="${reward.pageurl}"]`
         )
@@ -1196,7 +1196,7 @@ if (!customElements.get("delight-widget")) {
           if(!gparentElement) return
 
           const hrefValue = gparentElement.querySelector('a').href
-          if(dislikeArray.contains(hrefValue)) return
+          if(dislikeArray.includes(hrefValue)) return
           rewardProducts.forEach(async (reward) => {
             if(hrefValue == reward.pageurl) {
               dislikeArray.push(hrefValue)
