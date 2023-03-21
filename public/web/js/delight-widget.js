@@ -661,6 +661,10 @@ function removeDislikeRewards() {
     }
     const cartElement1 = document.querySelector('.cart-content')
     rewardProducts.forEach((reward) => {
+      const parts = reward.pageurl.split("/");
+      if(parts?.length<3) return
+      const myValue = parts[2];
+
       if(dislikeArray.includes(reward.pageurl)) {
         const tdVariantElement = cartElement1?.querySelector(
           `a[href*="${reward.pageurl}"]`
@@ -1196,10 +1200,15 @@ if (!customElements.get("delight-widget")) {
           if(!gparentElement) return
 
           const hrefValue = gparentElement.querySelector('a').href
-          if(dislikeArray.includes(hrefValue)) return
+          // const match = hrefValue.match(/\/games\/(.*)/);
+          // const myValue = match[1];
+          const parts = hrefValue.split("/");
+          if(parts?.length<3) return
+          const myValue = parts[2];
+          if(dislikeArray.includes(myValue)) return
           rewardProducts.forEach(async (reward) => {
             if(hrefValue == reward.pageurl) {
-              dislikeArray.push(hrefValue)
+              dislikeArray.push(myValue)
               window.localStorage.setItem('Dislikes', JSON.stringify(dislikeArray))
               return
             }
