@@ -1,12 +1,10 @@
 window.Delight = {
 	pageName: "thank_you",
-	orderId: document.querySelector('#FSI_IFrame')?.dataset?.feefoOrderref,
-	userName: document.querySelector('#FSI_IFrame')?.dataset?.feefoName,
-	contactEmail: document.querySelector('#FSI_IFrame')?.dataset?.feefoEmail,
-	products: document.querySelector('#FSI_IFrame')?.dataset?.feefoProducts ? JSON.parse(document.querySelector('#FSI_IFrame')?.dataset?.feefoProducts): [],
+	orderId: "",
+	userName: "",
+	products: [],
 	apiUrl: 'https://api-dev.delightglobal.io',
-	appUrl:'https://cdn.jsdelivr.net/gh/Dev-Demons/custom-greenman@main/public'
-	// appUrl:'https://delight-custom-greenman-dev.fly.dev'
+	appUrl:'https://delight-custom-greenman-dev.fly.dev'
 }
 
 var rewards = []
@@ -28,6 +26,47 @@ function addCss() {
 }
 addCss()
 
+async function getProductInfo() {
+	//Get Username
+	const res = await fetch(
+	`https://api.greenmangaming.com/api/v2/user_info?isFromCart=false&cjeTrackingValue=&isFromPaymentPage=false&impactTrackingValue=`,
+	{
+	  method: "GET",
+	  credentials: 'include',
+	  headers: {
+		"Content-Type": "application/json",
+	  }
+	})
+
+	if (!res.ok) return
+	const result = await res.json()
+	if(!result.Username) return
+	Delight.userName = result.Username
+
+	//Get OrderId
+	const orderContainer = document.querySelector('.your-order-number')
+	// if(!orderContainer) return
+	const emTag = orderContainer.querySelector('em.break-text')
+	Delight.orderId = emTag.textContent
+
+	// Get Products
+	const productContainer = document.querySelector('.table-order-summary.table-cart')
+	// if(!productContainer) return
+	const nameElements = productContainer.querySelectorAll('.prod-name-title')
+	for (let idx=0; idx<nameElements?.length; idx++) {
+		Delight.products.push(nameElements[idx].textContent)
+	}
+
+	/**
+	 * Please remove the following code when production
+	 */
+	//This is for the test
+	Delight.orderId = "#tex2352362457323523"
+	Delight.products.push('Dreamfall: The Longest Journey')
+}
+
+getProductInfo()
+
 const delightHostPartnerId = "64116ad7a5b7f032f200605a"
 const delightApiToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImhlbHBkZXNrQGdyZWVubWFuZ2FtaW5nLmNvbSIsImlkIjoiNjQxMTZhZDdhNWI3ZjAzMmYyMDA2MDVhIiwiaWF0IjoxNjc4ODYzMDYzLCJleHAiOjE5OTQ0MzkwNjN9.7kzhs6186pCUtvMKzRwnXc9DC1GzrZeEe6m319JG6GY"
 
@@ -36,20 +75,13 @@ async function delightPopupInit() {
 
 	Delight.products?.forEach(product => {
 		lineItems.push({
-			catalogId: product.productsearchcode
+			productname: product
 		})
-		// let arr = product.productsearchcode.split('-')
-		// if (arr.length <2) return
-		// lineItems.push({
-		// 	styleId: arr[1],
-		// 	optionId: arr[2]
-		// })
 	})
 
-	if(!Delight.orderId) return
-
+	if(Delight.userName == "" || Delight.orderId == "" || lineItems.length <= 0) return
 	const res = await fetch(
-		`${Delight.apiUrl}/campaigns/orderPourmoi/${delightHostPartnerId}`,
+		`${Delight.apiUrl}/campaigns/orderCustom/${delightHostPartnerId}`,
 		{
 			method: "POST",
 			headers: {
@@ -58,7 +90,6 @@ async function delightPopupInit() {
 			},
 			body: JSON.stringify({
 				"orderId": Delight.orderId,
-				"customerEmail": Delight.contactEmail,
 				"lineItems": lineItems
 			})
 		}
@@ -68,7 +99,6 @@ async function delightPopupInit() {
     const result = await res.json()
 
     const { campaigns, retRewards } = result
-	console.log()
     if (!campaigns || campaigns.length == 0 || campaigns[0].status != "active" || !campaigns[0].noticeByPopup)  return
 	rewards = retRewards
 	popup = campaigns[0].popup
@@ -210,7 +240,7 @@ function createPopup() {
 		strDot += `<span class="dot">${idx}</span>`;
 
 		strContent += `
-			<div class="popupSlides fade">
+			<div class="popupSlides">
 				<div class="reward-wraper">
 					<img class="reward-img" src="${item.images[0]?.url}" alt="Pineapple" >
 					<div class="reward-content">
@@ -458,8 +488,8 @@ function createPopup() {
 			}
 
 			@keyframes delight__widget-thankyou-modal-fade {
-				from {opacity: .4}
-				to {opacity: 1}
+				from {opacity: .4 !important}
+				to {opacity: 1 !important}
 			}
 
 			/* On smaller screens, decrease text size */
@@ -508,7 +538,7 @@ function createPopup() {
 			}
 
 			.delight__widget-thankyou-modal .delight--thankyou-detail-wrapper {
-				height: 110px;
+				height: 120px;
 				overflow-y: auto;
 				margin-top: 10px;
 				/*transition: height 0.2s;*/
@@ -752,7 +782,7 @@ if (document.readyState === "complete") {
 let stateCheck = setInterval(async () => {
 	if (document.readyState === 'complete') {
 		clearInterval(stateCheck);
-
+console.log("show widget start")
 		await delightPopupInit();
 		createPopup();
 
@@ -794,7 +824,7 @@ let stateCheck = setInterval(async () => {
 			showPopup();
 		}
 	}
-}, 100);
+}, 5000);
 
 
 function plusSlides(n) {

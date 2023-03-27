@@ -2,8 +2,7 @@ Delight = {
   templateName: 'product',
   addedToCart: false,
   apiUrl: 'https://api-dev.delightglobal.io',
-  appUrl: 'https://cdn.jsdelivr.net/gh/Dev-Demons/custom-greenman@main/public'
-  // appUrl: 'https://delight-custom-greenman-dev.fly.dev'
+  appUrl: 'https://delight-custom-greenman-dev.fly.dev'
 }
 
 const delightHostPartnerId = "64116ad7a5b7f032f200605a"
@@ -17,42 +16,27 @@ if (window.location.href.includes("your-cart---order") == true) {
 
 let campaign = {}
 let rewardProducts = []
-// it is used to preventing double adding
-let isRewardAdded = false;
 
-{/* <section class="your-cart-section"></section> */}
-//on the "your-cart---order" page
-const cartFormSelectors = [
+// is used to store the free gifts once the user removed from the basket
+let dislikeArray = []
+
+// is used to check that "Remove Gift" is done by User or Automatically-i.e when the productCnt is zero
+let isAutoRemove = false
+
+// The global variable to store the reward and product count in the cart
+let rewardCnt = 0
+let productCnt = 0
+
+let fshowWidgetAtProductPage = false
+
+let fisAdding = false
+
+const cartFormSelectors1 = [
   "section.your-cart-section"
-]
-// const cartFormSelectors = [
-//   ".cart-content"
-// ]
-// const cartFormSelectors = [
-//   ".basket-table"
-// ]
-const closeCartItemSelectors = [
-  "tr",
-]
-
-const cartThumbnailSelectors = [
-  ".product-image-link",
-]
-
-const cartQuantitySelectors = [
-  ".prod-quantity",
-]
-
-const cartQtyInputSelectors = [
-  ".quantity-selector",
-]
-
-const formSelectors = [
-  "#top-content-text",
 ]
 
 const addToCartSelectors = [
-  "data-add-to-basket",
+  "[data-add-to-basket]",
 ]
 
 const addToCartContainerSelectors = [
@@ -75,10 +59,6 @@ const prodRemoveItemSelectors = [
   ".col-xs-2", ".remove-container"
 ]
 
-const paymentSelectors = [
-  "#checkoutBtn"
-]
-
 //add delight-widget
 const delightCartWidget = document.createElement("delight-cart-widget")
 delightCartWidget.innerText = "delight-cart-widget"
@@ -87,16 +67,16 @@ document.querySelector('body').appendChild(delightCartWidget)
 
 // add css file
 function addCss() {
-  var cssId = 'delight-widget-css';  // you could encode the css path itself to generate id..
+  var cssId = 'delight-widget-css'  // you could encode the css path itself to generate id..
   if (!document.getElementById(cssId)) {
-    var head = document.getElementsByTagName('head')[0];
-    var link = document.createElement('link');
-    link.id = cssId;
-    link.rel = 'stylesheet';
-    link.type = 'text/css';
-    link.href = `${Delight.appUrl}/web/css/delight-widget.css`;
-    link.media = 'all';
-    head.appendChild(link);
+    var head = document.getElementsByTagName('head')[0]
+    var link = document.createElement('link')
+    link.id = cssId
+    link.rel = 'stylesheet'
+    link.type = 'text/css'
+    link.href = `${Delight.appUrl}/web/css/delight-widget.css`
+    link.media = 'all'
+    head.appendChild(link)
   }
 }
 addCss()
@@ -123,250 +103,50 @@ if (typeof window.fetchConfig === "undefined") {
   }
 }
 
-function hideButton(button) {
-  button.setAttribute(
-    "style",
-    "display:none!important;visibility:hidden;position:absolute;left:-10000px;"
-  )
-}
-
-function clickHiddenButton(button) {
-  window.btButtonState = "pass-through"
-  if (window.$ && window.hulkapps && window.hulkapps.is_product_option) {
-    logInfo("Hulkapps Product Options found. Clicking using jQuery.")
-    try {
-      window.$(button).trigger("click")
-    } catch (error) {
-      logError("jQuery click failed. Falling back to .click()", error)
-      button.click()
-    }
-  } else {
-    button.click()
-  }
-}
-
-function filterCheckoutForms(button) {
-  try {
-    const form = button.closest("form")
-    if (form && form.attributes && form.attributes.action) {
-      return form.attributes.action.value !== "/checkout"
-    }
-    return true
-  } catch (error) {
-    console.log("filterCheckoutForms", error)
-    return true
-  }
-}
-
-
-class ButtonsBase {
-  buttonPairs = []
-
-  constructor(eventName) {
-    this.eventName = eventName
-  }
-
-  watchButtonRemoval(targetNode) {
-    let target = targetNode
-    function findInsertedButton(addedNodes, hiddenButton) {
-      return Array.from(addedNodes).find(
-        (n) =>
-          n.nodeName === hiddenButton.nodeName && n.type === hiddenButton.type
-      )
-    }
-
-    const callback = (mutationsList) => {
-      for (const mutation of mutationsList) {
-        if (mutation.type === "childList") {
-          for (var node of mutation.removedNodes) {
-            if (node === target) {
-              console.log(
-                `${node.tagName}#${node.id} is being removed. Updating reference.`
-              )
-              const buttonPair = this.getPairByHiddenButton(target)
-              buttonPair.hiddenButton = findInsertedButton(
-                mutationsList.flatMap((e) => Array.from(e.addedNodes)),
-                buttonPair.hiddenButton
-              )
-              target = buttonPair.hiddenButton
-              hideButton(target)
-
-              buttonPair.clonedButton.disabled =
-                buttonPair.hiddenButton.disabled
-              buttonPair.clonedButton.className =
-                buttonPair.hiddenButton.className
-              buttonPair.clonedButton.innerHTML =
-                buttonPair.hiddenButton.innerHTML
-            }
-          }
-        }
-      }
-    }
-
-    try {
-      const observer = new MutationObserver(callback)
-
-      observer.observe(targetNode.parentElement, { childList: true })
-    } catch (error) {
-      console.log("Failed to setup button removal observer", error)
-    }
-  }
-
-  watchButtonChanges(targetNode) {
-    const callback = () => {
-      console.log(`${targetNode.id} is being modified. Updating content.`)
-      const { clonedButton, hiddenButton } =
-        this.getPairByHiddenButton(targetNode)
-      if (hiddenButton.style.display !== "none") {
-        hideButton(hiddenButton)
-      }
-      clonedButton.disabled = hiddenButton.disabled
-      clonedButton.className = hiddenButton.className
-      clonedButton.innerHTML = hiddenButton.innerHTML
-      clonedButton.value = hiddenButton.value
-
-      const eventName = "productVariantIdChanged"
-
-      console.log(`Firing ${eventName}`)
-      document.dispatchEvent(
-        new CustomEvent(eventName, {
-          detail: { clonedButton, hiddenButton }
-        })
-      )
-    }
-
-    try {
-      const observer = new MutationObserver(debounce(callback, 300))
-
-      observer.observe(targetNode, {
-        childList: true,
-        attributes: true,
-        subtree: true,
-        attributeFilter: ["disabled", "className", "style", "value"]
-      })
-    } catch (error) {
-      console.log("Failed to setup button changes observer", error)
-    }
-  }
-
-  cloneButtons() {
-    const buttons = this.getButtons()
-    console.log(`found ${buttons.length} buttons`)
-
-    buttons.forEach((button) => {
-      button.classList.add("delight")
-      const cloned = button.cloneNode(true)
-      cloned.classList.add("delight-cloned")
-      button.insertAdjacentElement("afterend", cloned)
-      hideButton(button)
-      this.watchButtonRemoval(button)
-      this.watchButtonChanges(button)
-
-      this.buttonPairs.push({
-        clonedButton: cloned,
-        hiddenButton: button
-      })
-    })
-
-    const buttonClicked = (event) => {
-      const target = event.currentTarget || event.target
-      const pair = this.getPairByClonedButton(target)
-      if (!pair) {
-        console.log("Couldn't find pair for cloned button.", target)
-        return
-      }
-
-      event.preventDefault()
-      event.stopImmediatePropagation()
-
-      document.dispatchEvent(new CustomEvent(this.eventName, { detail: pair }))
-    }
-
-    this.buttonPairs.forEach(({ clonedButton }) => {
-      clonedButton.addEventListener("click", buttonClicked, { capture: true })
-    })
-    return this.buttonPairs
-  }
-
-  getPairByHiddenButton(button) {
-    return this.buttonPairs.find((pair) => pair.hiddenButton === button)
-  }
-
-  getPairByClonedButton(clonedButton) {
-    return this.buttonPairs.find((pair) => pair.clonedButton === clonedButton)
-  }
-}
-
-class Buttons extends ButtonsBase {
-  constructor(eventName) {
-    super(eventName)
-
-    this.cloneButtons()
-    this.buttonWatcher()
-    this.debouncedCloneButtons = debounce(this.cloneButtons.bind(this), 1000)
-    window.btCloneButtons = this.debouncedCloneButtons
-  }
-
-  getButtons() {
-    let combinedButtons = Array.from(
-      document.querySelectorAll(addToCartSelectors)
-    )
-
-    return Array.from(new Set(combinedButtons))
-      .filter(filterCheckoutForms)
-      .filter(
-        (element) =>
-          !this.buttonPairs.find(
-            (pair) =>
-              pair.hiddenButton === element || pair.clonedButton === element
-          )
-      )
-  }
-
-  buttonWatcher() {
-    try {
-      const observer = new MutationObserver(() => {
-        this.debouncedCloneButtons()
-      })
-      const targetNode = document.body
-      observer.observe(targetNode, { childList: true })
-    } catch (error) {
-      console.log("Failed to setup ATC observer", error)
-    }
-  }
-}
-
-// check if product is reward
-function isRewardProduct(identity) {
-  let rLen = 0
-  rLen = rewardProducts.length
-  for (let i = 0; i < rLen; i++) {
-    let cLen = rewardProducts[i].customInfos?.length
-    if (rewardProducts[i].customInfos && cLen > 0) {
-      for (let j = 0; j < cLen; j++) {
-        if (rewardProducts[i].customInfos[j].data?.catalogId && rewardProducts[i].customInfos[j].data?.catalogId == identity) return true
-      }
-    }
-  }
-  return false
-}
-
 //Get rewards with catalogId and pageurl
-function getRewardProducts(rewards) {
+async function getRewardProducts(rewards) {
   let arr = []
   if (!rewards) return arr
 
+  let ipAddress = ''
+  let iso_code = ''
+  let countryName = ''
+  const response = await fetch('https://api.ipify.org')
+  if (response.ok) {
+    ipAddress = await response.text()
+  }
+  if(ipAddress == '') return arr
+
+  if(!(/^([0-9]{1,3}\.){3}[0-9]{1,3}$/.test(ipAddress)) || ipAddress == "127.0.0.1" || ipAddress == location.hostname) return arr
+
+  const url = `https://ipinfo.io/${ipAddress}/json`
+  const response1 = await fetch(url)
+  if(response1.ok) {
+    const data = await response1.json()
+    iso_code = data.country
+  }
+  if(iso_code == '') return arr
+
+  const response2 = await fetch(`https://restcountries.com/v3.1/alpha/${iso_code}`)
+  if(response2.ok) {
+    const data = await response2.json()
+    countryName = data[0].name.common
+  }
+  if(countryName == '') return
+
+  console.log(countryName)
   rewards.map((reward) => {
     if (!reward.customInfos) return
     let isInfo = false
     let idx = 0
     for (idx = 0; idx < reward.customInfos.length; idx++) {
       if (reward.customInfos[idx].hostPartner.id == delightHostPartnerId) {
-        isInfo = true;
-        break;
+        isInfo = true
+        break
       }
     }
-    if (isInfo) {
+    const countryList = reward.redemption
+    if (isInfo && reward.redemption && countryList.includes(countryName)) {
       reward.catalogId = reward.customInfos[idx].data.catalogId
       reward.pageurl = reward.customInfos[idx].data.pageurl
       arr.push(reward)
@@ -375,16 +155,12 @@ function getRewardProducts(rewards) {
   return arr
 }
 
-// The global variable to store the reward and product count in the cart
-let rewardCnt = 0;
-let productCnt = 0;
-
 // count for rewards and products in cart
 function getSelRewardCnt() {
   let itemCount = 0
   rewardCnt = 0
   productCnt = 0
-  if(Delight.templateName === "product") {
+  if(Delight.templateName === 'product') {
     const cartElement = document.querySelector('.cart-content')
     itemCount = cartElement?.querySelectorAll('li').length
     if(!cartElement) return
@@ -393,13 +169,12 @@ function getSelRewardCnt() {
         `a[href*="${reward.pageurl}"]`
       )
       if (tdVariantElements?.length > 0) {
-        rewardCnt++;
+        rewardCnt++
       }
     })
     if(itemCount < rewardCnt) return
     productCnt = itemCount - rewardCnt
-
-  } else if (Delight.templateName === "cart") {
+  } else if (Delight.templateName === 'cart') {
     const basketContainerElement = document.querySelector('.delight-basket-table')
     const basketTableElement = basketContainerElement?.querySelector('ul.table-cart')
     if(!basketTableElement) return
@@ -409,15 +184,31 @@ function getSelRewardCnt() {
         `a[href*="${reward.pageurl}"]`
       )
       if (tdVariantElements?.length > 0) {
-        rewardCnt++;
-      } else {
+        rewardCnt++
+        const parts = reward.pageurl.split("/")
+        if(parts?.length<3) return
+        const myValue = parts[2]
         const delightWidgetElement = document.querySelector(
-          `#product-form-${reward.pageurl}`
+          `#product-form-${myValue}`
         )
         if(delightWidgetElement) {
           const submitButton = delightWidgetElement.querySelector('.product-form__submit.button')
           if(submitButton) {
-            submitButton.setAttribute("disabled", false)
+            submitButton.setAttribute("disabled", true)
+          }
+        }
+      } else {
+        const parts = reward.pageurl.split("/")
+        if(parts?.length<3) return
+        const myValue = parts[2]
+
+        const delightWidgetElement = document.querySelector(
+          `#product-form-${myValue}`
+        )
+        if(delightWidgetElement) {
+          const submitButton = delightWidgetElement.querySelector('.product-form__submit.button')
+          if(submitButton) {
+            submitButton.removeAttribute("disabled")
           }
         }
       }
@@ -428,7 +219,6 @@ function getSelRewardCnt() {
 }
 
 function isRewardInCart(reward) {
-  console.log("isRewardInCart  ", reward.pageurl)
   const cartElement = document.querySelector('.cart-content')
   const tdVariantElements = cartElement?.querySelectorAll(
     `a[href*="${reward.pageurl}"]`
@@ -438,87 +228,77 @@ function isRewardInCart(reward) {
     for(let idx=0; idx<tdVariantElements.length; idx++) {
       const imageElement = tdVariantElements[idx].querySelector('.prod-image')
       const nameElement = tdVariantElements[idx].querySelector('.prod-name')
-      const quantityElement = tdVariantElements[idx].querySelector('prod-quantity')
+      const quantityElement = tdVariantElements[idx].querySelector('.prod-quantity')
       if(imageElement && nameElement && quantityElement) {
-        console.log("is reward in cart true")
         return true
       } else {
-        console.log("is reward in cart false")
         return false
       }
     }
   }
-  console.log("is reward in cart false")
   return false
-}
-
-// show free gift mark on the "cart-container" of the cart dropdown
-function showFreeIllustartion() {
-  if (campaign?.showGiftLabel && Delight.templateName === "product") {
-    // rewardProducts.forEach((reward) => {
-
-    //   const rewardElements = document.querySelectorAll(
-    //     `a[href*="${reward.pageurl}"]`
-    //   )
-    //   if (rewardElements?.length > 0) {
-
-    //     rewardElements.forEach((rewardElement) => {
-    //       const trThumbnailInput = rewardElement.querySelector(
-    //         ".css-ellipsis"
-    //       )
-
-    //       if (!trThumbnailInput) return;
-    //       if (trThumbnailInput.querySelector('.delight__gift--label___delight-wrapper')) return;
-
-    //       const prodNameElement = trThumbnailInput.parentNode
-    //       const giftLabel = document.createElement("div")
-    //       trThumbnailInput.classList.remove('css-ellipsis')
-    //       giftLabel.classList.add('delight__gift--label___delight-wrapper')
-    //       giftLabel.innerHTML = `
-    //         <div class="delight__gift--label___delight" style="margin-top:5px">
-    //           <img src="${Delight.appUrl}/web/images/icon-gift.svg" style="filter:invert(1)" width="15" height="15">
-    //           <span>Free Gift</span>
-    //         </div>`
-    //         prodNameElement.appendChild(giftLabel)
-    //     })
-    //   }
-    // })
-  }
 }
 
 //Show the Banner Illustrations on the "<cart page>"
 function showBannerIllustartion() {
-  if (campaign?.showRewardBanner && Delight.templateName === "cart") {
+  if (campaign?.showRewardBanner && Delight.templateName === 'cart') {
     const oldBanner = document.querySelector('#delight_banner_unique_id')
-    if (oldBanner) oldBanner.remove();
+    if (oldBanner) oldBanner.remove()
 
-    let rewardCnt = 0;
-
-    rewardProducts.forEach((reward) => {
-      const tdVariantElements = document.querySelectorAll(
-        `a[href*="${reward.pageurl}"]`
-      )
-
-      if (tdVariantElements?.length > 0) {
-        rewardCnt++;
-      }
+    let rewardCnt = 0
+    let rewardAddedCnt = 0
+    let productAddedCnt = 0
+    const delightProductForms = document.querySelectorAll(
+        "delight-product-form"
+    )
+    delightProductForms.forEach((form) => {
+        const formVariantId = form.querySelector('input[name="pageurl"]').value
+        const tdVariantElements = document.querySelectorAll(
+            `a[href*="${formVariantId}"]`
+        )
+        if (tdVariantElements?.length > 0) {
+            rewardAddedCnt++
+        } else {
+            productAddedCnt++
+        }
     })
 
-    let cartFormElement = document.querySelector(cartFormSelectors)
-    if (!cartFormElement) return;
+    if(productAddedCnt > 0 && campaign.rewards.length >= rewardAddedCnt) {
+      rewardCnt = rewardProducts.length-rewardAddedCnt
+    }
+
+    let cartFormElement = document.querySelector(cartFormSelectors1)
+    if (!cartFormElement) return
 
     const cartFormElementParent = cartFormElement.parentNode
-    const newBanner = document.createElement("div");
-    newBanner.id = 'delight_banner_unique_id';
-    const strBanner = `
-        <div class="outter">
-          <div class="inner">
-            <img src="${Delight.appUrl}/web/images/icon-check.svg" width="20" height="20">
-            <span>You have qualified for ${rewardCnt} free gift(s)</span>
-          </div>
+    const newBanner = document.createElement("div")
+    newBanner.id = 'delight_banner_unique_id'
+    let strBanner = ''
+    if(rewardCnt > 0 && rewardCnt < rewardProducts.length) {
+      strBanner = `<div class="outter">
+        <div class="inner">
+          <img src="${Delight.appUrl}/web/images/icon-check.svg" width="20" height="20">
+          <div>You have qualified for <span class="rewad-cnt">${rewardCnt}</span> more free gift(s)</div>
+        </div>
+      </div>`
+    } else if (rewardCnt == 0) {
+        strBanner = `<div class="outter">
+            <div class="inner">
+                <img src="${Delight.appUrl}/web/images/icon-check.svg" width="20" height="20">
+                <div>You have added all available <span class="rewad-cnt"></span> free gift(s)</div>
+            </div>
         </div>`
-    newBanner.innerHTML = strBanner;
-    cartFormElementParent.insertBefore(newBanner, cartFormElement.nextSibling);
+    } else {
+      strBanner = `<div class="outter">
+        <div class="inner">
+          <img src="${Delight.appUrl}/web/images/icon-check.svg" width="20" height="20">
+          <div>You have qualified for <span class="rewad-cnt">${rewardCnt}</span> free gift(s)</div>
+        </div>
+      </div>`
+    }
+
+    newBanner.innerHTML = strBanner
+    cartFormElementParent.insertBefore(newBanner, cartFormElement)
   }
 }
 
@@ -531,11 +311,11 @@ function hideRewardQuantity() {
     )
     if (tdVariantElements?.length > 0) {
       tdVariantElements.forEach((tdVariantElement) => {
-        if (Delight.templateName === "product") {
+        if (Delight.templateName === 'product') {
           const trQuantityInputs = tdVariantElement.querySelectorAll(
             ".prod-quantity"
           )
-          if (!trQuantityInputs) return;
+          if (!trQuantityInputs) return
           for (let idx = 0; idx < trQuantityInputs.length; idx++) {
             const giftLabel = document.createElement("div")
             giftLabel.classList.add('delight__gift--label___delight-wrapper')
@@ -549,35 +329,57 @@ function hideRewardQuantity() {
             trQuantityInputs[idx].appendChild(giftLabel)
             // trQuantityInputs[idx].classList?.add("delight__widget-quantity-disabled")
           }
-        } else if (Delight.templateName === "cart") {
+
+          const removeButtonContainerElements = document.querySelectorAll(prodRemoveItemSelectors.join(""))
+          removeButtonContainerElements?.forEach((removeButtonContainerElement) => {
+            const removeButtonElement = removeButtonContainerElement.querySelector('a')
+            if(removeButtonElement) {
+              removeButtonElement.addEventListener("click", handleExternalRemoveFromCartButtonClick, { capture: true })
+            }
+          })
+        } else if (Delight.templateName === 'cart') {
           let trQuantityInputs = tdVariantElement.querySelector(
             ".info-int"
           )
-          if (!trQuantityInputs) return;
-          if (trQuantityInputs.querySelector('.delight__gift--label___delight-wrapper')) return;
+          if (!trQuantityInputs) return
+          if (trQuantityInputs.querySelector('.delight__gift--label___delight-wrapper-cart')) return
 
+          let customElement0 = trQuantityInputs?.querySelector(".prod-name")
           let customElement1 = trQuantityInputs?.querySelector("platform-names")
           let customElement2 = trQuantityInputs?.querySelector(".prod-drm")
-          if(customElement1) {
-            trQuantityInputs.removeChild(customElement1)
+          let prodName = customElement0?.textContent
+
+          if(customElement0) {
+            trQuantityInputs.removeChild(customElement0)
           }
           if(customElement2) {
             trQuantityInputs.removeChild(customElement2)
           }
+          if(customElement1) {
+            trQuantityInputs.removeChild(customElement1)
+            var element = customElement1.querySelector('.prod-platform span')
+            element.textContent = prodName
+          }
 
           const giftLabel = document.createElement("div")
-          giftLabel.classList.add('delight__gift--label___delight-wrapper')
+          giftLabel.classList.add('delight__gift--label___delight-wrapper-cart')
           giftLabel.innerHTML = `
-            <div class="delight__gift--label___delight" style="margin-top:5px">
+            <div class="delight__gift--label___delight-cartpage">
               <img src="${Delight.appUrl}/web/images/icon-gift.svg" style="filter:invert(1)" width="15" height="15">
               <span>Free Gift</span>
             </div>`
+
+          giftLabel.style.marginLeft = ''
+          giftLabel.style.marginRight = ''
+          giftLabel.style.alignItems = ''
+
           trQuantityInputs.appendChild(giftLabel)
+          trQuantityInputs.appendChild(customElement1)
 
           const parentElement = tdVariantElement?.parentNode
-          if(!parentElement) return;
+          if(!parentElement) return
           const gparentElement = parentElement.parentNode
-          if(!gparentElement) return;
+          if(!gparentElement) return
 
           let prodQuantityElement1 = gparentElement?.querySelector(
             prodQuantitySelectors1.join("")
@@ -589,7 +391,7 @@ function hideRewardQuantity() {
           let prodQuantityElement2 = gparentElement?.querySelector(
             prodQuantitySelectors2.join("")
           )
-          console.log(prodQuantityElement2)
+
           if(prodQuantityElement2) {
             const customElement = document.createElement("div")
             customElement.classList.add("delight__widget-quantity-disabled")
@@ -623,14 +425,21 @@ function hideRewardQuantity() {
 // if no normal products in cart, remove all rewards
 function removeRewards() {
   if(productCnt == 0) {
-    if(Delight.templateName === "product") {
+    if(Delight.templateName === 'product') {
       const cartElement = document.querySelector('.cart-content')
       const removeContainerElements = cartElement?.querySelectorAll('.remove-container')
       for(let idx = 0; idx < removeContainerElements?.length; idx++) {
         const removeContainerElement = removeContainerElements[idx]
         const removeElement = removeContainerElement.querySelector('a')
         if(removeElement) {
+          isAutoRemove = true
           removeElement.click()
+          removeElement.removeAttribute("ng-click")
+          removeElement.addEventListener("click", function(event) {
+            event.preventDefault()
+          })
+          removeElement.classList.add("disabled")
+          isAutoRemove = false
         }
       }
     } else if (Delight.templateName === 'cart') {
@@ -642,7 +451,14 @@ function removeRewards() {
         const removeContainerElement = trashElements[idx]
         const removeElement = removeContainerElement.querySelector('a')
         if(removeElement) {
+          isAutoRemove = true
           removeElement.click()
+          removeElement.removeAttribute("ng-click")
+          removeElement.addEventListener("click", function(event) {
+            event.preventDefault()
+          })
+          removeElement.classList.add("disabled")
+          isAutoRemove = false
         }
       }
     }
@@ -651,20 +467,17 @@ function removeRewards() {
   }
 }
 
+
 // Automatically Remove rewards that the user once remove from the cart
 function removeDislikeRewards() {
   if (Delight.templateName === 'product') {
-    const storedValue = window.localStorage.getItem('Dislikes')
-    let dislikeArray = []
-    if(storedValue != null) {
-      dislikeArray = JSON.parse(storedValue)
-    }
+    // const storedValue = window.localStorage.getItem('Dislikes')
+    // let dislikeArray = []
+    // if(storedValue != null) {
+    //   dislikeArray = JSON.parse(storedValue)
+    // }
     const cartElement1 = document.querySelector('.cart-content')
     rewardProducts.forEach((reward) => {
-      const parts = reward.pageurl.split("/");
-      if(parts?.length<3) return
-      const myValue = parts[2];
-
       if(dislikeArray.includes(reward.pageurl)) {
         const tdVariantElement = cartElement1?.querySelector(
           `a[href*="${reward.pageurl}"]`
@@ -686,16 +499,59 @@ function removeDislikeRewards() {
   }
 }
 
+//initialize the localstorage from the basket
+function getAddedRewards() {
+  let addedRewards = []
+
+  if(Delight.templateName === 'product') {
+    const cartElement = document.querySelector('.cart-content')
+    if(!cartElement) return
+    rewardProducts.forEach((reward) => {
+      const tdVariantElements = cartElement?.querySelectorAll(
+        `a[href*="${reward.pageurl}"]`
+      )
+      if (tdVariantElements?.length > 0) {
+        addedRewards.push(reward.pageurl)
+      }
+    })
+  } else if (Delight.templateName === 'cart') {
+    const basketContainerElement = document.querySelector('.delight-basket-table')
+    const basketTableElement = basketContainerElement?.querySelector('ul.table-cart')
+    if(!basketTableElement) return
+    itemCount = basketTableElement.querySelectorAll('li').length
+    rewardProducts.forEach((reward) => {
+      const tdVariantElements = document.querySelectorAll(
+        `a[href*="${reward.pageurl}"]`
+      )
+      if (tdVariantElements?.length > 0) {
+        addedRewards.push(reward.pageurl)
+      }
+    })
+  }
+  window.localStorage.setItem("added", JSON.stringify(addedRewards))
+}
+
+function addNewEventlistener() {
+  if(Delight.templateName === 'product') {
+    if(fshowWidgetAtProductPage && !fisAdding) {
+      const addButtonContainerElements = document.querySelectorAll(addToCartSelectors.join(''))
+      addButtonContainerElements?.forEach((addButtonContainerElement) => {
+        addButtonContainerElement.addEventListener("click", handleExternalAddToCartButtonClick, { capture: true, once: true })
+      })
+    }
+  }
+}
+
 isAddBtnEnabled = false
 function updateQuantity() {
-  let m = 0;
+  let m = 0
   let stateCheck = setInterval(async () => {
     getSelRewardCnt()
     removeRewards()
     removeDislikeRewards()
     showBannerIllustartion()
-    // showFreeIllustartion()
     hideRewardQuantity()
+    addNewEventlistener()
 
     //check if add cart delight button inactive
     if(window.location.href.includes("products") == true  && !isAddBtnEnabled) {
@@ -710,10 +566,10 @@ function updateQuantity() {
     }
 
     if (m === 10) {
-      clearInterval(stateCheck);
+      clearInterval(stateCheck)
     }
-    m++;
-  }, 500);
+    m++
+  }, 500)
 }
 
 const debouncedOnChange = debounce(() => {
@@ -724,7 +580,6 @@ document.addEventListener(
   "click",
   debouncedOnChange.bind(this)
 )
-
 
 async function asyncForEach(array, callback) {
   for (let index = 0; index < array.length; index++) {
@@ -739,6 +594,7 @@ function setDelightWidgetDetail() {
       class DelightProductDetailModal extends HTMLElement {
         constructor() {
           super()
+
           this.querySelector(
             '[id^="DelightProductDetailModalClose-"]'
           ).addEventListener("click", this.hide.bind(this, false))
@@ -810,14 +666,18 @@ function setDelightWidgetDetail() {
       class DelightModalOpener extends HTMLElement {
         constructor() {
           super()
-
           const button = this.querySelector("button")
           if (!button) return
+          // Clone the button element
+          const newButton = button.cloneNode(true);
+          // Replace the original button with the cloned button
+          button.replaceWith(newButton);
 
-          button.addEventListener("click", () => {
+          newButton.addEventListener("click", (event) => {
+            event.preventDefault()
             const modal = document.querySelector(this.getAttribute("data-modal"))
             if (modal) {
-              modal.show(button)
+              modal.show()
             }
           })
         }
@@ -832,9 +692,9 @@ function setDelightWidgetDetail() {
         constructor() {
           super()
 
-          this.form = this.querySelector("form")
-          this.form.addEventListener("submit", this.onSubmitHandler.bind(this))
-          this.submitButton = this.querySelector('[type="submit"]')
+          this.form = this.querySelector("form");
+          this.form.addEventListener("submit", this.onSubmitHandler.bind(this));
+          this.submitButton = this.querySelector('[type="submit"]');
         }
 
         async onSubmitHandler(evt) {
@@ -850,12 +710,11 @@ function setDelightWidgetDetail() {
           )
 
           let catalogId = this.form.querySelector('[name=catalogId]').value
-          console.log(reward.pageurl)
+          let pageurl = this.form.querySelector('[name=pageurl]').value
           const tdVariantElements = document.querySelectorAll(
-            `a[href*="${reward.pageurl}"]`
+            `a[href*="${pageurl}"]`
           )
           if (tdVariantElements?.length > 0) return
-          console.log(reward.pageurl)
 
           //add to basket
           const res = await fetch(
@@ -871,7 +730,8 @@ function setDelightWidgetDetail() {
               })
             }
           )
-          window.location.reload()
+          if(res.ok)
+            window.location.reload()
         }
 
         handleErrorMessage(errorMessage = false) {
@@ -882,7 +742,76 @@ function setDelightWidgetDetail() {
   }
 }
 
-let gHostName = "Delight"
+async function handleExternalRemoveFromCartButtonClick(event) {
+  event.preventDefault()
+  if(isAutoRemove) {
+    isAutoRemove = false
+    return
+  }
+  // const storedValue = window.localStorage.getItem('Dislikes')
+  // let dislikeArray = []
+  // if(storedValue != null) {
+  //   dislikeArray = JSON.parse(storedValue)
+  // }
+  const parentElement = event.target.parentNode
+  if(!parentElement) return
+  const gparentElement = parentElement.parentNode
+  if(!gparentElement) return
+  const ggparentElement = gparentElement.parentNode
+  if(!ggparentElement) return
+
+  const hrefValue = ggparentElement.querySelector('a').href
+  const url = new URL(hrefValue);
+  const path = url.pathname;
+
+  if(dislikeArray.includes(path)) return
+  rewardProducts.forEach(async (reward) => {
+    if(path == reward.pageurl) {
+      dislikeArray.push(path)
+      // window.localStorage.setItem('Dislikes', JSON.stringify(dislikeArray))
+      return
+    }
+  })
+}
+
+async function handleExternalAddToCartButtonClick(event) {
+  fisAdding = true
+  event.preventDefault()
+  event.stopPropagation()
+  if (rewardCnt < rewardProducts.length) {
+    const apiResponsePromises = rewardProducts.map(async (reward) => {
+      if (isRewardInCart(reward)) {
+        return
+      }
+      const apiResponse = await fetch(
+        `https://api.greenmangaming.com/api/v2/cart/add_to_basket/`,
+        {
+          method: "POST",
+          credentials: 'include',
+          headers: {
+            'Content-Type': "application/json"
+          },
+          body: JSON.stringify({
+            "catalogId": reward.catalogId
+          })
+        }
+      )
+      if (apiResponse.ok) {
+        window.delightProductAdded = true
+      } else {
+        window.delightProductAdded = false
+      }
+    })
+    await Promise.all(apiResponsePromises) // wait for all API requests to complete
+    // await new Promise(resolve => setTimeout(resolve)); // delay to allow the event loop to catch up
+    fisAdding = false
+    event.target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  } else {
+    event.target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  }
+}
+
+
 if (!customElements.get("delight-widget")) {
   async function init() {
     // Get campaign
@@ -904,22 +833,17 @@ if (!customElements.get("delight-widget")) {
     if (!campaigns || campaigns.length == 0) return
 
     campaign = campaigns[0]
-    rewardProducts = getRewardProducts(campaign.rewards)
+
+    rewardProducts = await getRewardProducts(campaign.rewards)
 
     const {
-      headline,
-      description,
       showWidgetAtCartPage,
       showWidgetAtProductPage,
-      status,
-      hostPartner
+      status
     } = campaign
 
-    gHostName = hostPartner.brandPartner?.split(" ")[0]
-    if (!gHostName) gHostName = "Delight"
-
-    // remove add button on reward product page
-    // removeAddButtonProductPage()
+    if(showWidgetAtProductPage) fshowWidgetAtProductPage = true
+    else fshowWidgetAtProductPage = false
 
     if (status !== "active") return
 
@@ -929,7 +853,7 @@ if (!customElements.get("delight-widget")) {
         constructor() {
           super()
 
-          if (showWidgetAtCartPage && Delight.templateName === "cart") {
+          if (showWidgetAtCartPage && Delight.templateName === 'cart') {
             this.classList.remove("visually-hidden")
 
             let headHtml = `
@@ -937,9 +861,8 @@ if (!customElements.get("delight-widget")) {
                 <div class="delight__widget-head-content">
                     <div class="delight__widget-title">
                         <img src="${Delight.appUrl}/web/images/icon-gift.svg" style="filter:invert(1)">
-                        <h4 class="delight__widget-headline">${headline}</h4>
+                        <h4 class="delight__widget-headline">Your free gifts at checkout!</h4>
                     </div>
-                    <p class="delight__widget-description">${description}</p>
                 </div>
                   <div class="delight__widget-content-arrow-wrapper">
                       <span id="delight__widget-content-btn" class="delight__widget-content-btn cursor-pointer">
@@ -968,8 +891,9 @@ if (!customElements.get("delight-widget")) {
 
             let liHtml = ''
             rewardProducts.forEach((reward) => {
-              let disabled = ''
-              if (isRewardInCart(reward)) disabled = 'disabled'
+              const parts = reward.pageurl.split("/")
+              if(parts?.length<3) return
+              const myValue = parts[2]
               liHtml += `
                 <li class="delight__widget-item">
                   <div class="delight__widget-item-desc">
@@ -978,23 +902,24 @@ if (!customElements.get("delight-widget")) {
                       <div class="delight__widget-item-content">
                           <div class="cart-item__name h4 break">${reward.headline}</div>
                           <div class="delight__gift--label___delight">
-                            <img src="${Delight.appUrl}/web/images/icon-gift.svg" style="filter:invert(1)">
-                            <span>Free gift from ${gHostName}</span>
+                            <img src="${Delight.appUrl}/web/images/icon-gift.svg" style="filter:invert(1);">
+                            <span>Free gift from Greenman Gaming</span>
                           </div>
                       </div>
                   </div>
 
                   <div class="delight__widget-actions">
                       <delight-product-form>
-                          <form method="post" action="" id="product-form-${reward.pageurl}"
+                          <form method="post" action="" id="product-form-${myValue}"
                               accept-charset="UTF-8"
                               class="form" enctype="multipart/form-data" novalidate="novalidate"
                               data-type="add-to-cart-form">
                               <input type="hidden" name="catalogId" value="${reward.catalogId}">
+                              <input type="hidden" name="pageurl" value="${reward.pageurl}">
                               <div class="product-form__buttons">
-                                  <button type="submit" name="add" class="product-form__submit button" ${disabled}>
+                                  <button type="submit" name="add" class="product-form__submit button" >
                                       <img
-                                          src="${Delight.appUrl}/web/images/icon-delight-add-bag.svg">
+                                          src="${Delight.appUrl}/web/images/icon-delight-add-bag.svg" style="width:15px; height:15px;">
                                       <div class="loading-overlay__spinner hidden">
                                           <svg aria-hidden="true" focusable="false" role="presentation"
                                               class="delight-spinner"
@@ -1007,11 +932,11 @@ if (!customElements.get("delight-widget")) {
                           </form>
                       </delight-product-form>
 
-                      <delight-product-detail-modal id="DelightProductDetailModal-${reward.sku}">
+                      <delight-product-detail-modal id="DelightProductDetailModal-${reward.id}">
                           <div class="delight__widget-modal" role="dialog" tabindex="-1"
                               aria-label="${reward.headline}" aria-modal="true">
                               <div class="delight__widget-modal-content">
-                                  <span id="DelightProductDetailModalClose-${reward.sku}"
+                                  <span id="DelightProductDetailModalClose-${reward.id}"
                                       class="delight__widget-close-button">×</span>
                                   <div class="delight__widget-modal--image-wraper">
                                       <img src="${reward.images[0]?.url}"
@@ -1050,9 +975,9 @@ if (!customElements.get("delight-widget")) {
                               </div>
                           </div>
                       </delight-product-detail-modal>
-                      <delight-modal-opener data-modal="#DelightProductDetailModal-${reward.sku}">
-                          <button id="delight__widget-info-btn-${reward.sku}" aria-haspopup="dialog">
-                              <img src="${Delight.appUrl}/web/images/icon-delight-info.svg">
+                      <delight-modal-opener data-modal="#DelightProductDetailModal-${reward.id}">
+                          <button id="delight__widget-info-btn-${reward.id}" aria-haspopup="dialog">
+                              <img src="${Delight.appUrl}/web/images/icon-delight-info.svg" style="width:15px; height:15px;">
                               <div class="loading-overlay__spinner hidden">
                                   <svg aria-hidden="true" focusable="false"
                                       role="presentation" class="delight-spinner"
@@ -1073,7 +998,7 @@ if (!customElements.get("delight-widget")) {
 
             this.innerHTML = headHtml + bodyHtml
             const cartFormElement = document.querySelector(
-              cartFormSelectors.join(",")
+              cartFormSelectors1.join(",")
             )
 
             const cartFormElementParent = cartFormElement?.parentNode
@@ -1086,36 +1011,41 @@ if (!customElements.get("delight-widget")) {
             widgetContainer.appendChild(this)
 
             setDelightWidgetDetail()
-
           }
-          //  else if (
-          //   showWidgetAtProductPage &&
-          //   Delight.templateName === "product"
-          // ) {
-          //   new Buttons("addToCartButtonClicked")
-          // }
 
-          // delete all items if the cart price is zero in minicart in Lucky Saint
+          // update the UI and Property
           updateQuantity()
         }
 
         connectedCallback() {
-          if (showWidgetAtCartPage && Delight.templateName === "cart") {
-            this.contentBtn = document.getElementById(
-              "delight__widget-content-btn"
-            )
-            this.contentBtn.addEventListener("click", this.toggleContent)
-          } else if (
-            Delight.templateName === "product"
-          ) {
+          if (Delight.templateName === 'cart') {
+            if(showWidgetAtCartPage) {
+              this.contentBtn = document.getElementById(
+                "delight__widget-content-btn"
+              )
+              this.contentBtn.addEventListener("click", this.toggleContent)
+            }
+
+            // Handle the button click when the "RemoveItem" button is clicked in the cart page
+            const basketContainerElement = document.querySelector('.delight-basket-table')
+            const basketTableElement = basketContainerElement?.querySelector('ul.table-cart')
+            if(!basketTableElement) return
+            const trashElements = basketTableElement.querySelectorAll('.remove-container.hidden-xs')
+            for(let idx=0; idx<trashElements.length; idx++) {
+              const removeContainerElement = trashElements[idx]
+              const removeElement = removeContainerElement.querySelector('a')
+              if(removeElement) {
+                removeElement.addEventListener("click", handleExternalRemoveFromCartButtonClick, { capture: true })
+              }
+            }
+          }
+
+          if (Delight.templateName === 'product') {
             // Handle the button click when the "Add to Cart" button is clicked
-            if(showWidgetAtProductPage) {
-              const addButtonContainerElements = document.querySelectorAll(addToCartContainerSelectors.join(","))
+            if(fshowWidgetAtProductPage) {
+              const addButtonContainerElements = document.querySelectorAll(addToCartSelectors.join(''))
               addButtonContainerElements?.forEach((addButtonContainerElement) => {
-                const addButtonElement = addButtonContainerElement.querySelector('button')
-                if(addButtonElement) {
-                  addButtonElement.addEventListener("click",this.handleExternalAddToCartButtonClick, { capture: true })
-                }
+                addButtonContainerElement.addEventListener("click", handleExternalAddToCartButtonClick, { capture: true, once: true })
               })
             }
 
@@ -1124,14 +1054,14 @@ if (!customElements.get("delight-widget")) {
             removeButtonContainerElements?.forEach((removeButtonContainerElement) => {
               const removeButtonElement = removeButtonContainerElement.querySelector('a')
               if(removeButtonElement) {
-                removeButtonElement.addEventListener("click",this.handleExternalRemoveFromCartButtonClick, { capture: true })
+                removeButtonElement.addEventListener("click",handleExternalRemoveFromCartButtonClick, { capture: true })
               }
             })
           }
         }
 
         disconnectedCallback() {
-          if (showWidgetAtCartPage && Delight.templateName === "cart") {
+          if (showWidgetAtCartPage && Delight.templateName === 'cart') {
             this.contentBtn.removeEventListener("click", this.toggleContent)
           }
         }
@@ -1146,76 +1076,6 @@ if (!customElements.get("delight-widget")) {
           this.classList.toggle("collapsed")
         }
 
-        // Handler of "Add Reward to Cart" when "Add to cart" button of product page is clicked
-        async handleExternalAddToCartButtonClick(event) {
-          event.preventDefault()
-          if (rewardCnt < rewardProducts.length) {
-            const apiResponsePromises = [];
-              rewardProducts.forEach(async (reward) => {
-                if (isRewardInCart(reward)) {
-                  return
-                }
-                const apiResponsePromise = fetch(
-                  `https://api.greenmangaming.com/api/v2/cart/add_to_basket/`,
-                  {
-                    method: "POST",
-                    credentials: 'include',
-                    headers: {
-                      'Content-Type': "application/json"
-                    },
-                    body: JSON.stringify({
-                      "catalogId": reward.catalogId
-                    })
-                  }
-                  )
-                apiResponsePromises.push(apiResponsePromise);
-              })
-              const apiResponses = await Promise.all(apiResponsePromises);
-              apiResponses.forEach(apiResponse => {
-                if (apiResponse.ok) {
-                  window.delightProductAdded = true
-                } else {
-                  window.delightProductAdded = false
-                }
-              })
-              setTimeout(()=>{
-                event.target.dispatchEvent(new Event('click'));
-              }, 500)
-          }
-        }
-
-        // Handler of "Remove Rewards from cart" when the "remove" button of product page is clicked
-        async handleExternalRemoveFromCartButtonClick(event) {
-          event.preventDefault()
-
-          const storedValue = window.localStorage.getItem('Dislikes')
-          let dislikeArray = []
-          if(storedValue != null) {
-            dislikeArray = JSON.parse(storedValue)
-          }
-
-          const parentElement = event.target.parentNode
-          if(!parentElement) return
-          const gparentElement = parentElement.parentNode
-          if(!gparentElement) return
-
-          const hrefValue = gparentElement.querySelector('a').href
-          // const match = hrefValue.match(/\/games\/(.*)/);
-          // const myValue = match[1];
-          const parts = hrefValue.split("/");
-          if(parts?.length<3) return
-          const myValue = parts[2];
-          if(dislikeArray.includes(myValue)) return
-          rewardProducts.forEach(async (reward) => {
-            if(hrefValue == reward.pageurl) {
-              dislikeArray.push(myValue)
-              window.localStorage.setItem('Dislikes', JSON.stringify(dislikeArray))
-              return
-            }
-          })
-
-          event.target.dispatchEvent(new Event('click'));
-        }
 
       }
     )
